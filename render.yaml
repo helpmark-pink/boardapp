@@ -6,6 +6,8 @@ services:
       pip install -r requirements.txt
       python wsgi.py
     startCommand: gunicorn wsgi:app
+    healthCheckPath: /
+    autoDeploy: false
     envVars:
       - key: FLASK_ENV
         value: production

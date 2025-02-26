@@ -16,13 +16,7 @@ DEBUG = ENV == 'development'
 
 # セキュリティ設定
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24))
-
-# PostgreSQLのURLをSQLAlchemyの形式に変換
-database_url = os.getenv('DATABASE_URL')
-if database_url and database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
-
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///board.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///board.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 app.config['SESSION_COOKIE_SECURE'] = ENV != 'development'  # 本番環境ではTrue
@@ -40,10 +34,6 @@ limiter = Limiter(
 # CSRFプロテクション
 csrf = CSRFProtect(app)
 db = SQLAlchemy(app)
-
-# データベース初期化
-with app.app_context():
-    db.create_all()
 
 # モデル定義
 class User(db.Model):
