@@ -6,7 +6,7 @@ services:
       pip install -r requirements.txt
       mkdir -p templates
       cp -r templates/* templates/
-      python wsgi.py
+      python -c "from boardapp import app, db; app.app_context().push(); db.create_all()"
     startCommand: gunicorn boardapp:app
     healthCheckPath: /
     autoDeploy: false
