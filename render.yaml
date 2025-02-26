@@ -21,7 +21,7 @@ services:
               print(f'Database initialization error: {e}')
               raise
       "
-    startCommand: gunicorn "boardapp:app" --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2 --chdir /opt/render/project/src
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2 --chdir /opt/render/project/src
     healthCheckPath: /health
     healthCheckTimeout: 5
     autoDeploy: true
@@ -49,7 +49,7 @@ services:
       - key: GUNICORN_CMD_ARGS
         value: "--access-logfile - --error-logfile - --capture-output"
       - key: PYTHONPATH
-        value: "/opt/render/project/src"
+        value: "/opt/render/project/src:/opt/render/project/src/boardapp"
       - key: SESSION_COOKIE_SECURE
         value: "true"
       - key: SESSION_COOKIE_HTTPONLY
