@@ -8,9 +8,11 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_dir)
 
 try:
-    from boardapp import app, db
+    from boardapp import app
 except ImportError as e:
     print(f"Import error: {e}")
+    print(f"Current directory: {current_dir}")
+    print(f"Python path: {sys.path}")
     sys.exit(1)
 
 # 本番環境の設定を適用
