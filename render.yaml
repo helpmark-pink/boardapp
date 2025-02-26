@@ -4,11 +4,10 @@ services:
     runtime: python
     buildCommand: |
       pip install -r requirements.txt
-      mkdir -p templates
+      mkdir -p instance templates
       cp -r templates/* templates/
-      python -c "import os; os.makedirs('instance', exist_ok=True)"
       PYTHONPATH=$PWD python -c "from boardapp import app, db; app.app_context().push(); db.create_all()"
-    startCommand: PYTHONPATH=$PWD gunicorn "boardapp:app"
+    startCommand: PYTHONPATH=$PWD gunicorn wsgi:app
     healthCheckPath: /
     autoDeploy: false
     envVars:
