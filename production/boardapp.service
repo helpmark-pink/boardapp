@@ -1,0 +1,17 @@
+[Unit]
+Description=Gunicorn instance to serve boardapp
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/boardapp
+Environment="PATH=/var/www/boardapp/venv/bin"
+Environment="FLASK_ENV=production"
+Environment="FLASK_APP=boardapp.py"
+Environment="SECRET_KEY=your-secret-key-here"  # 実際の環境では適切な値に変更してください
+ExecStart=/var/www/boardapp/venv/bin/gunicorn --workers 4 --bind 127.0.0.1:3000 wsgi:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target 
