@@ -24,7 +24,7 @@ services:
               print(f'Current working directory: {sys.getcwd()}', file=sys.stderr)
               raise
       "
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2
+    startCommand: gunicorn "boardapp:app" --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2
     healthCheckPath: /health
     healthCheckTimeout: 5
     autoDeploy: true
