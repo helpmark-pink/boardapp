@@ -6,8 +6,9 @@ services:
       pip install -r requirements.txt
       mkdir -p templates
       cp -r templates/* templates/
-      PYTHONPATH=$PYTHONPATH:. python -c "from boardapp import app, db; app.app_context().push(); db.create_all()"
-    startCommand: PYTHONPATH=$PYTHONPATH:. gunicorn wsgi:app
+      python -c "import os; os.makedirs('instance', exist_ok=True)"
+      PYTHONPATH=$PWD python -c "from boardapp import app, db; app.app_context().push(); db.create_all()"
+    startCommand: PYTHONPATH=$PWD gunicorn "boardapp:app"
     healthCheckPath: /
     autoDeploy: false
     envVars:
