@@ -2,25 +2,33 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
+
+# 環境設定
+ENV = os.getenv('FLASK_ENV', 'development')
+DEBUG = ENV == 'development'
 
 # セキュリティ設定
-app.config['SECRET_KEY'] = os.urandom(24)  # セッションの暗号化キー
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///board.db'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24))
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///board.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # セッション有効期限
-app.config['SESSION_COOKIE_SECURE'] = False  # 開発環境用に一時的にHTTPS要件を無効化
-app.config['SESSION_COOKIE_HTTPONLY'] = True  # JavaScriptからのクッキーアクセスを防止
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+app.config['SESSION_COOKIE_SECURE'] = ENV != 'development'  # 本番環境ではTrue
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# 証明書のパス
-cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ssl')
-ssl_context = (
-    os.path.join(cert_path, 'cert.pem'),
-    os.path.join(cert_path, 'key.pem')
+# レート制限の設定
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
 )
 
 # CSRFプロテクション
@@ -51,9 +59,24 @@ class Post(db.Model):
 # セキュリティヘッダー設定
 @app.after_request
 def add_security_headers(response):
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    # Content Security Policy
+    csp = {
+        'default-src': "'self'",
+        'script-src': "'self'",
+        'style-src': "'self' 'unsafe-inline'",
+        'img-src': "'self' data:",
+        'font-src': "'self'",
+        'frame-ancestors': "'none'"
+    }
+    response.headers['Content-Security-Policy'] = '; '.join(f"{key} {value}" for key, value in csp.items())
+    
+    # その他のセキュリティヘッダー
+    response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
     return response
 
 # CSRF エラーハンドラー
@@ -61,6 +84,8 @@ def add_security_headers(response):
 def handle_csrf_error(e):
     return render_template('error.html', message='CSRF token has expired or is invalid'), 400
 
+# レート制限をルートに適用
+@limiter.limit("5 per minute")
 @app.route("/", methods=["GET", "POST"])
 def top():
     if request.method == "POST":
@@ -74,6 +99,7 @@ def top():
     threads = Thread.query.order_by(Thread.created_at.desc()).all()
     return render_template("threads.html", threads_fetches=threads)
 
+@limiter.limit("20 per minute")
 @app.route("/<int:thread_id>", methods=["GET", "POST"])
 def posts(thread_id):
     thread = Thread.query.get_or_404(thread_id)
@@ -97,6 +123,7 @@ def posts(thread_id):
     posts = Post.query.filter_by(thread_id=thread_id).order_by(Post.date.asc()).all()
     return render_template("posts.html", thread_title=thread.title, posts_fetches=posts, thread_id=thread_id)
 
+@limiter.limit("10 per minute")
 @app.route("/<int:thread_id>/replyto-<int:replyto_id>", methods=["GET", "POST"])
 def reply(thread_id, replyto_id):
     thread = Thread.query.get_or_404(thread_id)
@@ -128,4 +155,7 @@ def reply(thread_id, replyto_id):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', debug=True, port=8080)  # ポート8080を使用 
+    if ENV == 'development':
+        app.run(host='127.0.0.1', port=3000, debug=True)
+    else:
+        app.run(host='127.0.0.1', port=3000, debug=False) 
