@@ -9,7 +9,7 @@ services:
       ls -la
       pwd
       PYTHONPATH=$PWD python -c "from boardapp import app, db; app.app_context().push(); db.create_all()"
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2
+    startCommand: gunicorn "boardapp:app" --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2
     healthCheckPath: /
     autoDeploy: false
     envVars:
