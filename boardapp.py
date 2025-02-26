@@ -41,6 +41,10 @@ limiter = Limiter(
 csrf = CSRFProtect(app)
 db = SQLAlchemy(app)
 
+# データベース初期化
+with app.app_context():
+    db.create_all()
+
 # モデル定義
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)

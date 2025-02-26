@@ -2,7 +2,9 @@ services:
   - type: web
     name: boardapp
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install -r requirements.txt
+      python -c "from boardapp import db; db.create_all()"
     startCommand: gunicorn wsgi:app
     envVars:
       - key: FLASK_ENV
