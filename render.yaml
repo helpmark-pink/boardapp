@@ -12,6 +12,8 @@ services:
     envVars:
       - key: FLASK_ENV
         value: production
+      - key: FLASK_APP
+        value: boardapp
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: SECRET_KEY
@@ -20,14 +22,24 @@ services:
         fromDatabase:
           name: boardapp-db
           property: connectionString
+      - key: SQLALCHEMY_TRACK_MODIFICATIONS
+        value: "false"
+      - key: SQLALCHEMY_ENGINE_OPTIONS
+        value: '{"pool_size": 5, "max_overflow": 10, "pool_timeout": 30, "pool_recycle": 1800}'
       - key: PORT
         value: 10000
       - key: PYTHONUNBUFFERED
         value: "true"
       - key: GUNICORN_CMD_ARGS
-        value: "--access-logfile - --error-logfile -"
+        value: "--access-logfile - --error-logfile - --capture-output"
       - key: PYTHONPATH
         value: "/opt/render/project/src"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_COOKIE_HTTPONLY
+        value: "true"
+      - key: SESSION_COOKIE_SAMESITE
+        value: "Lax"
     buildFilter:
       paths:
         - requirements.txt
