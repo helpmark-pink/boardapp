@@ -8,7 +8,7 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_dir)
 
 try:
-    from boardapp import app
+    from boardapp import app, db
 except ImportError as e:
     print(f"Import error: {e}")
     print(f"Current directory: {current_dir}")
@@ -23,31 +23,30 @@ except Exception as e:
     # デフォルト設定を使用
     pass
 
-# データベースの初期化（リトライ付き）
-def init_db(max_retries=5):
+# データベース接続の初期化
+def init_db(max_retries=3):
     for attempt in range(max_retries):
         try:
             with app.app_context():
-                db.create_all()
-            print("Database tables created successfully")
-            return True
-        except OperationalError as e:
-            print(f"Database initialization attempt {attempt + 1} failed: {e}")
+                # 接続テスト
+                db.engine.connect().execute("SELECT 1")
+                return True
+        except Exception as e:
+            print(f"Database connection attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)  # 指数バックオフ
+                time.sleep(2 ** attempt)
                 continue
             raise
     return False
 
-# アプリケーション初期化
-if __name__ != "__main__":
+# アプリケーション初期化（Gunicornのプリロード時に実行）
+def on_starting(server):
     try:
         init_db()
-        print("Database initialization successful")
+        print("Database connection initialized successfully")
     except Exception as e:
         print(f"Database initialization failed: {e}")
-        # エラーをログに記録するが、アプリケーションは続行
-        pass
+        sys.exit(1)
 
 # アプリケーションの実行
 if __name__ == "__main__":

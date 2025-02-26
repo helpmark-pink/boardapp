@@ -24,7 +24,7 @@ services:
               print(f'Current working directory: {sys.getcwd()}', file=sys.stderr)
               raise
       "
-    startCommand: cd /opt/render/project/src && PYTHONPATH=/opt/render/project/src python -m gunicorn wsgi:app --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2
+    startCommand: cd /opt/render/project/src && PYTHONPATH=/opt/render/project/src gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-class=gthread --worker-tmp-dir=/dev/shm --preload --max-requests 1000 --max-requests-jitter 50 --log-level info
     healthCheckPath: /health
     healthCheckTimeout: 5
     autoDeploy: true
@@ -44,7 +44,7 @@ services:
       - key: SQLALCHEMY_TRACK_MODIFICATIONS
         value: "false"
       - key: SQLALCHEMY_ENGINE_OPTIONS
-        value: '{"pool_size": 5, "max_overflow": 10, "pool_timeout": 30, "pool_recycle": 1800}'
+        value: '{"pool_size": 10, "max_overflow": 20, "pool_timeout": 30, "pool_recycle": 1800, "pool_pre_ping": true}'
       - key: PORT
         value: 10000
       - key: PYTHONUNBUFFERED
