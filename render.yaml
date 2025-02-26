@@ -6,40 +6,38 @@ services:
       pip install -r requirements.txt
       mkdir -p instance
       echo "Starting database initialization..."
-      PYTHONPATH=$PWD python -c "
+      cd /opt/render/project/src
+      PYTHONPATH=/opt/render/project/src python -c "
+      import os
       import sys
-      from boardapp import app, db
-      from sqlalchemy import text
-      with app.app_context():
-          print('Testing database connection...')
-          try:
-              db.engine.connect().execute(text('SELECT 1'))
-              print('Database connection successful')
-              print('Creating database tables...')
-              db.create_all()
-              print('Database tables created successfully')
-          except Exception as e:
-              print(f'Database initialization error: {e}', file=sys.stderr)
-              print(f'Python path: {sys.path}', file=sys.stderr)
-              print(f'Current working directory: {sys.getcwd()}', file=sys.stderr)
-              raise
+      print('Current directory:', os.getcwd())
+      print('Python path:', sys.path)
+      print('Directory contents:', os.listdir('.'))
+      try:
+          from boardapp import app, db
+          print('Successfully imported boardapp')
+          from sqlalchemy import text
+          with app.app_context():
+              print('Testing database connection...')
+              try:
+                  db.engine.connect().execute(text('SELECT 1'))
+                  print('Database connection successful')
+                  print('Creating database tables...')
+                  db.create_all()
+                  print('Database tables created successfully')
+              except Exception as e:
+                  print(f'Database initialization error: {e}', file=sys.stderr)
+                  print(f'Python path: {sys.path}', file=sys.stderr)
+                  print(f'Current working directory: {os.getcwd()}', file=sys.stderr)
+                  raise
+      except ImportError as e:
+          print(f'Import error: {e}', file=sys.stderr)
+          print(f'Current directory: {os.getcwd()}', file=sys.stderr)
+          print(f'Python path: {sys.path}', file=sys.stderr)
+          print(f'Directory contents: {os.listdir(".")}', file=sys.stderr)
+          raise
       "
-    startCommand: >
-      cd /opt/render/project/src &&
-      PYTHONPATH=/opt/render/project/src
-      python -m gunicorn
-      --chdir /opt/render/project/src
-      --pythonpath /opt/render/project/src
-      'wsgi:app'
-      --bind '0.0.0.0:$PORT'
-      --workers 2
-      --threads 4
-      --worker-class=gthread
-      --worker-tmp-dir=/dev/shm
-      --preload
-      --max-requests 1000
-      --max-requests-jitter 50
-      --log-level info
+    startCommand: cd /opt/render/project/src && PYTHONPATH=/opt/render/project/src gunicorn --chdir /opt/render/project/src --pythonpath /opt/render/project/src wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-class=gthread --worker-tmp-dir=/dev/shm --preload --max-requests 1000 --max-requests-jitter 50 --log-level info
     healthCheckPath: /health
     healthCheckTimeout: 5
     autoDeploy: true
