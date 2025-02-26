@@ -19,6 +19,11 @@ services:
         fromDatabase:
           name: boardapp-db
           property: connectionString
+    buildFilter:
+      paths:
+        - requirements.txt
+        - "**/*.py"
+        - templates/**/*
 
 databases:
   - name: boardapp-db
