@@ -7,6 +7,9 @@ from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
+from sqlalchemy.exc import OperationalError, DatabaseError
+from sqlalchemy import create_engine
+from sqlalchemy.pool import QueuePool
 
 app = Flask(__name__, template_folder='templates')
 
@@ -14,10 +17,35 @@ app = Flask(__name__, template_folder='templates')
 ENV = os.getenv('FLASK_ENV', 'development')
 DEBUG = ENV == 'development'
 
-# セキュリティ設定
+# データベースURL設定
+database_url = os.getenv('DATABASE_URL', 'sqlite:///board.db')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    if 'sslmode=' not in database_url:
+        database_url += '?sslmode=require'
+elif database_url.startswith('postgresql://') and 'sslmode=' not in database_url:
+    database_url += '?sslmode=require'
+
+# データベース設定
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24))
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///board.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 5,  # デフォルトのコネクションプールサイズ
+    'max_overflow': 10,  # プールサイズを超えて作成可能な追加コネクション数
+    'pool_timeout': 30,  # プールからコネクションを取得する際のタイムアウト（秒）
+    'pool_recycle': 1800,  # コネクションを再利用する時間（秒）
+    'pool_pre_ping': True,  # コネクション使用前の生存確認
+    'connect_args': {
+        'connect_timeout': 10,  # データベース接続タイムアウト（秒）
+        'keepalives': 1,  # TCP keepaliveを有効化
+        'keepalives_idle': 30,  # アイドル状態でのkeepaliveまでの時間（秒）
+        'keepalives_interval': 10,  # keepaliveの間隔（秒）
+        'keepalives_count': 5  # keepaliveの再試行回数
+    }
+}
+
+# セッション設定
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 app.config['SESSION_COOKIE_SECURE'] = ENV != 'development'  # 本番環境ではTrue
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -34,6 +62,29 @@ limiter = Limiter(
 # CSRFプロテクション
 csrf = CSRFProtect(app)
 db = SQLAlchemy(app)
+
+# データベース接続リトライデコレータ
+def retry_on_db_error(max_retries=3, delay=1):
+    def decorator(f):
+        from functools import wraps
+        import time
+        
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return f(*args, **kwargs)
+                except (OperationalError, DatabaseError) as e:
+                    retries += 1
+                    if retries == max_retries:
+                        app.logger.error(f"最大リトライ回数に達しました: {str(e)}")
+                        raise
+                    app.logger.warning(f"データベースエラー、リトライ {retries}/{max_retries}: {str(e)}")
+                    time.sleep(delay * retries)  # 指数バックオフ
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 # モデル定義
 class User(db.Model):
@@ -84,16 +135,32 @@ def add_security_headers(response):
 def handle_csrf_error(e):
     return render_template('error.html', message='CSRF token has expired or is invalid'), 400
 
+@app.errorhandler(OperationalError)
+def handle_db_operational_error(e):
+    app.logger.error(f"Database operational error: {str(e)}")
+    return render_template('error.html', message='データベース接続エラーが発生しました。しばらく経ってから再度お試しください。'), 500
+
+@app.errorhandler(DatabaseError)
+def handle_db_error(e):
+    app.logger.error(f"Database error: {str(e)}")
+    return render_template('error.html', message='データベースエラーが発生しました。'), 500
+
 # レート制限をルートに適用
 @limiter.limit("5 per minute")
 @app.route("/", methods=["GET", "POST"])
+@retry_on_db_error(max_retries=3, delay=1)
 def top():
     if request.method == "POST":
         thread_title = request.form.get("thread-title")
         if thread_title:
-            new_thread = Thread(title=thread_title)
-            db.session.add(new_thread)
-            db.session.commit()
+            try:
+                new_thread = Thread(title=thread_title)
+                db.session.add(new_thread)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"スレッド作成エラー: {str(e)}")
+                raise
             return redirect(url_for("top"))
     
     threads = Thread.query.order_by(Thread.created_at.desc()).all()
@@ -101,6 +168,7 @@ def top():
 
 @limiter.limit("20 per minute")
 @app.route("/<int:thread_id>", methods=["GET", "POST"])
+@retry_on_db_error(max_retries=3, delay=1)
 def posts(thread_id):
     thread = Thread.query.get_or_404(thread_id)
     
@@ -109,15 +177,20 @@ def posts(thread_id):
         message = request.form.get("post-message")
         
         if name and message:
-            post_id = Post.query.filter_by(thread_id=thread_id).count() + 1
-            new_post = Post(
-                thread_id=thread_id,
-                post_id=post_id,
-                name=name,
-                message=message
-            )
-            db.session.add(new_post)
-            db.session.commit()
+            try:
+                post_id = Post.query.filter_by(thread_id=thread_id).count() + 1
+                new_post = Post(
+                    thread_id=thread_id,
+                    post_id=post_id,
+                    name=name,
+                    message=message
+                )
+                db.session.add(new_post)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"投稿作成エラー: {str(e)}")
+                raise
             return redirect(url_for("posts", thread_id=thread_id))
     
     posts = Post.query.filter_by(thread_id=thread_id).order_by(Post.date.asc()).all()
@@ -125,6 +198,7 @@ def posts(thread_id):
 
 @limiter.limit("10 per minute")
 @app.route("/<int:thread_id>/replyto-<int:replyto_id>", methods=["GET", "POST"])
+@retry_on_db_error(max_retries=3, delay=1)
 def reply(thread_id, replyto_id):
     thread = Thread.query.get_or_404(thread_id)
     original_post = Post.query.filter_by(thread_id=thread_id, post_id=replyto_id).first_or_404()
@@ -134,16 +208,21 @@ def reply(thread_id, replyto_id):
         message = request.form.get("post-message")
         
         if name and message:
-            post_id = Post.query.filter_by(thread_id=thread_id).count() + 1
-            new_reply = Post(
-                thread_id=thread_id,
-                post_id=post_id,
-                name=name,
-                message=message,
-                rep_id=replyto_id
-            )
-            db.session.add(new_reply)
-            db.session.commit()
+            try:
+                post_id = Post.query.filter_by(thread_id=thread_id).count() + 1
+                new_reply = Post(
+                    thread_id=thread_id,
+                    post_id=post_id,
+                    name=name,
+                    message=message,
+                    rep_id=replyto_id
+                )
+                db.session.add(new_reply)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"返信作成エラー: {str(e)}")
+                raise
             return redirect(url_for("posts", thread_id=thread_id))
     
     return render_template("reply.html", 
@@ -154,7 +233,16 @@ def reply(thread_id, replyto_id):
 
 if __name__ == "__main__":
     with app.app_context():
-        db.create_all()
+        try:
+            # データベース接続テスト
+            db.engine.connect()
+            app.logger.info("Database connection successful")
+            # テーブル作成
+            db.create_all()
+        except Exception as e:
+            app.logger.error(f"Database connection failed: {str(e)}")
+            raise
+
     if ENV == 'development':
         app.run(host='127.0.0.1', port=3000, debug=True)
     else:
