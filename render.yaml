@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: boardapp
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: boardapp-db
+          property: connectionString
+
+databases:
+  - name: boardapp-db
+    databaseName: boardapp
+    user: boardapp
+    plan: free
