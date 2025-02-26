@@ -4,7 +4,7 @@ services:
     runtime: python
     buildCommand: |
       pip install -r requirements.txt
-      python -c "from boardapp import db; db.create_all()"
+      python wsgi.py
     startCommand: gunicorn wsgi:app
     envVars:
       - key: FLASK_ENV
