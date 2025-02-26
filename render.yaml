@@ -7,6 +7,14 @@ services:
       mkdir -p instance
       echo "Starting database initialization..."
       cd /opt/render/project/src
+      echo "Checking project structure..."
+      ls -la
+      echo "Checking boardapp directory..."
+      ls -la boardapp/
+      echo "Python version:"
+      python --version
+      echo "Current working directory:"
+      pwd
       PYTHONPATH=/opt/render/project/src python -c "
       import os
       import sys
@@ -14,8 +22,11 @@ services:
       print('Python path:', sys.path)
       print('Directory contents:', os.listdir('.'))
       try:
+          print('Attempting to import boardapp...')
+          import boardapp
+          print('boardapp package found at:', boardapp.__file__)
           from boardapp import app, db
-          print('Successfully imported boardapp')
+          print('Successfully imported app and db from boardapp')
           from sqlalchemy import text
           with app.app_context():
               print('Testing database connection...')
@@ -35,6 +46,11 @@ services:
           print(f'Current directory: {os.getcwd()}', file=sys.stderr)
           print(f'Python path: {sys.path}', file=sys.stderr)
           print(f'Directory contents: {os.listdir(".")}', file=sys.stderr)
+          if os.path.exists('boardapp'):
+              print('boardapp directory exists')
+              print('boardapp contents:', os.listdir('boardapp'))
+          else:
+              print('boardapp directory does not exist')
           raise
       "
     startCommand: cd /opt/render/project/src && PYTHONPATH=/opt/render/project/src gunicorn --chdir /opt/render/project/src --pythonpath /opt/render/project/src wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-class=gthread --worker-tmp-dir=/dev/shm --preload --max-requests 1000 --max-requests-jitter 50 --log-level info
