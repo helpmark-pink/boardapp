@@ -24,7 +24,7 @@ services:
               print(f'Current working directory: {sys.getcwd()}', file=sys.stderr)
               raise
       "
-    startCommand: gunicorn "boardapp:app" --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2
+    startCommand: cd /opt/render/project/src && PYTHONPATH=/opt/render/project/src gunicorn "boardapp:app" --bind 0.0.0.0:$PORT --log-level debug --timeout 120 --workers 4 --threads 2 --preload
     healthCheckPath: /health
     healthCheckTimeout: 5
     autoDeploy: true
@@ -52,7 +52,7 @@ services:
       - key: GUNICORN_CMD_ARGS
         value: "--access-logfile - --error-logfile - --capture-output"
       - key: PYTHONPATH
-        value: "/opt/render/project/src:/opt/render/project/src/boardapp"
+        value: "/opt/render/project/src"
       - key: SESSION_COOKIE_SECURE
         value: "true"
       - key: SESSION_COOKIE_HTTPONLY
