@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError
@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 from sqlalchemy.exc import OperationalError, DatabaseError
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 
 app = Flask(__name__, template_folder='templates')
@@ -230,6 +230,17 @@ def reply(thread_id, replyto_id):
                          posts_fetches=[original_post], 
                          thread_id=thread_id, 
                          replyto_id=replyto_id)
+
+@app.route('/health')
+def health_check():
+    try:
+        # データベース接続テスト
+        db.session.execute(text('SELECT 1'))
+        db.session.commit()
+        return jsonify({"status": "healthy", "database": "connected"}), 200
+    except Exception as e:
+        app.logger.error(f"Health check failed: {e}")
+        return jsonify({"status": "unhealthy", "database": "disconnected", "error": str(e)}), 500
 
 if __name__ == "__main__":
     with app.app_context():
