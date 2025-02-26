@@ -53,19 +53,7 @@ services:
               print('boardapp directory does not exist')
           raise
       "
-    startCommand: |
-      cd /opt/render/project/src
-      PYTHONPATH=/opt/render/project/src
-      python3 -m gunicorn boardapp:app \
-        --bind=0.0.0.0:$PORT \
-        --workers=2 \
-        --threads=4 \
-        --worker-class=gthread \
-        --worker-tmp-dir=/dev/shm \
-        --preload \
-        --max-requests=1000 \
-        --max-requests-jitter=50 \
-        --log-level=info
+    startCommand: cd /opt/render/project/src && PYTHONPATH=/opt/render/project/src gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-class gthread --worker-tmp-dir /dev/shm --preload --max-requests 1000 --max-requests-jitter 50 --log-level debug
     healthCheckPath: /health
     healthCheckTimeout: 5
     autoDeploy: true
