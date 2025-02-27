@@ -1,0 +1,17 @@
+{
+  "install": "pip3 install -r requirements.txt",
+  "start": "python3 start.py",
+  "watch": {
+    "ignore": [
+      "\\.pyc$",
+      "__pycache__",
+      "instance"
+    ],
+    "install": {
+      "include": ["^requirements\\.txt$"]
+    },
+    "restart": {
+      "include": ["\\.py$"]
+    }
+  }
+} 
