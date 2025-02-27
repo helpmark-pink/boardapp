@@ -1,0 +1,1 @@
+web: PYTHONPATH=/opt/render/project/src gunicorn --chdir /opt/render/project/src wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-class gthread --worker-tmp-dir /dev/shm --preload --max-requests 1000 --max-requests-jitter 50 --log-level debug 
