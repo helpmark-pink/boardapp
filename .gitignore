@@ -23,6 +23,8 @@ wheels/
 # Virtual Environment
 venv/
 ENV/
+env/
+.env
 
 # IDE
 .idea/
@@ -30,17 +32,27 @@ ENV/
 *.swp
 *.swo
 
-# Database
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Application specific
+instance/
 *.db
-
-# Environment variables
-.env
-
-# Logs
+*.sqlite
+*.sqlite3
 *.log
-
-# SSL certificates
 ssl/
-*.pem
-*.key
-*.crt 
+production/
+cert.pem
+key.pem
+*.service
+setup_*.sh
+deploy.sh
+run_*.sh
+nginx.conf 
